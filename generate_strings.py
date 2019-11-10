@@ -67,18 +67,19 @@ loaded_model.load_weights('model.h5')
 
 # process 0 starts the game
 if rank == 0:
-    start_word = '15'
+    start_word = 'We'
     comm.send(start_word, dest=1, tag=11)
 
-# last process ends the game
+# last process prints the sentence and ends the game
 elif rank == size - 1:
-    pass
+    sentence = comm.recv(source=rank-1, tag=11)
+    print(sentence)
 
 # processes in the middle continue the game
 else:
     sentence = comm.recv(source=rank-1, tag=11)
-    sentence = generate_seq(loaded_model, tokenizer, max_length-1, sentence, 4)
+    sentence = generate_seq(loaded_model, tokenizer, max_length-1, sentence, 1)
     comm.send(sentence, dest=rank+1, tag=11)
 
 
-
+MPI.Finalize()
