@@ -1,12 +1,7 @@
-from numpy import array
-from keras.preprocessing.text import Tokenizer
-from keras.utils import to_categorical
-from keras.preprocessing.sequence import pad_sequences
-from keras.models import Sequential
+from mpi4py import MPI
 from keras.models import model_from_json
-from keras.layers import Dense
-from keras.layers import LSTM
-from keras.layers import Embedding
+from keras.preprocessing.text import Tokenizer
+from keras.preprocessing.sequence import pad_sequences
 import os
 
 
@@ -32,11 +27,12 @@ def generate_seq(model, tokenizer, max_length, seed_text, n_words):
     return in_text
 
 
-# source text
-data = open('clickbait_data', 'r').read()  # should be simple plain text file
+comm = MPI.COMM_WORLD
+rank = comm.Get_rank()
+
+data = open('input.txt', 'r').read()  # should be simple plain text file
 data = os.linesep.join([s for s in data.splitlines() if s])
-data = data[:len(data) // 3]
-print(data)
+#data = data[:len(data) // 3]
 
 # integer encode sequences of words
 tokenizer = Tokenizer()
@@ -58,32 +54,6 @@ print('Total Sequences: %d' % len(sequences))
 
 # pad sequences
 max_length = max([len(seq) for seq in sequences])
-sequences = pad_sequences(sequences, maxlen=max_length, padding='pre')
-print('Max Sequence Length: %d' % max_length)
-
-# split into input and output elements
-sequences = array(sequences)
-X, y = sequences[:,:-1],sequences[:,-1]
-y = to_categorical(y, num_classes=vocab_size)
-
-# define model
-model = Sequential()
-model.add(Embedding(vocab_size, 10, input_length=max_length-1))
-model.add(LSTM(50))
-model.add(Dense(vocab_size, activation='softmax'))
-print(model.summary())
-
-# compile network
-model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['accuracy'])
-
-# fit network
-model.fit(X, y, epochs=200, verbose=2)
-
-# save model to file
-model_json = model.to_json()
-with open('model.json', 'w') as json_file:
-    json_file.write(model_json)
-model.save_weights('model.h5')
 
 # load model from file
 json_file = open('model.json', 'r')
@@ -92,5 +62,13 @@ json_file.close()
 loaded_model = model_from_json(loaded_model_json)
 loaded_model.load_weights('model.h5')
 
-# evaluate model
-print(generate_seq(loaded_model, tokenizer, max_length-1, 'Barry the', 5))
+generate_seq(loaded_model, tokenizer, max_length-1, '', 5)
+
+if rank == 0:
+    comm.send('hi its 0', dest=1, tag=11)
+
+if rank == 1:
+    d = comm.recv(source=0, tag=11)
+    print(d)
+
+
