@@ -29,6 +29,7 @@ def generate_seq(model, tokenizer, max_length, seed_text, n_words):
 
 comm = MPI.COMM_WORLD
 rank = comm.Get_rank()
+size = comm.Get_size()
 
 data = open('input.txt', 'r').read()  # should be simple plain text file
 data = os.linesep.join([s for s in data.splitlines() if s])
@@ -62,13 +63,22 @@ json_file.close()
 loaded_model = model_from_json(loaded_model_json)
 loaded_model.load_weights('model.h5')
 
-generate_seq(loaded_model, tokenizer, max_length-1, '', 5)
+# print(generate_seq(loaded_model, tokenizer, max_length-1, '18 Ways', 4))
 
+# process 0 starts the game
 if rank == 0:
-    comm.send('hi its 0', dest=1, tag=11)
+    start_word = '15'
+    comm.send(start_word, dest=1, tag=11)
 
-if rank == 1:
-    d = comm.recv(source=0, tag=11)
-    print(d)
+# last process ends the game
+elif rank == size - 1:
+    pass
+
+# processes in the middle continue the game
+else:
+    sentence = comm.recv(source=rank-1, tag=11)
+    sentence = generate_seq(loaded_model, tokenizer, max_length-1, sentence, 4)
+    comm.send(sentence, dest=rank+1, tag=11)
+
 
 
